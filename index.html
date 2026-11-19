@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LUT Studio</title>
+<style>
+  :root {
+    --bg: #08090c;
+    --bg-2: #0d0f13;
+    --panel: #101216;
+    --panel-2: #14171c;
+    --line: rgba(255,255,255,.07);
+    --line-2: rgba(255,255,255,.12);
+    --text: #e9ebef;
+    --muted: #8a909b;
+    --dim: #5d636e;
+    --teal: #2dd4bf;
+    --orange: #fb923c;
+    --grad: linear-gradient(90deg, var(--teal), var(--orange));
+    --radius: 12px;
+    --font: "Inter", "SF Pro Text", "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(900px 500px at 12% -10%, rgba(45,212,191,.07), transparent 60%),
+      radial-gradient(900px 500px at 95% 110%, rgba(251,146,60,.06), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  svg { display: block; flex-shrink: 0; }
+
+  /* ---------- Header ---------- */
+  header {
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(8,9,12,.7);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    flex-shrink: 0;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark { width: 28px; height: 28px; }
+  .brand-name { font-weight: 650; font-size: 15px; letter-spacing: -.01em; }
+  .brand-name span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .brand-sub { color: var(--dim); font-size: 12px; padding-left: 12px; border-left: 1px solid var(--line-2); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 5px 11px; border-radius: 999px;
+    background: var(--panel); border: 1px solid var(--line);
+    color: var(--muted); font-size: 11.5px; font-family: var(--mono);
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
+  .dot.live { background: var(--teal); box-shadow: 0 0 0 3px rgba(45,212,191,.18); }
+  .dot.rec { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.22); animation: pulse 1.1s infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  /* ---------- Layout ---------- */
+  main { flex: 1; display: flex; min-height: 0; }
+  .stage-col { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 18px; gap: 14px; }
+  #stage {
+    flex: 1; min-height: 0; position: relative;
+    border-radius: 16px;
+    background:
+      linear-gradient(45deg, rgba(255,255,255,.015) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.015) 75%) 0 0 / 24px 24px,
+      linear-gradient(45deg, rgba(255,255,255,.015) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.015) 75%) 12px 12px / 24px 24px,
+      #050608;
+    border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    box-shadow: inset 0 0 80px rgba(0,0,0,.5);
+  }
+  #stage.drag { border-color: var(--teal); box-shadow: inset 0 0 0 1px var(--teal), inset 0 0 80px rgba(45,212,191,.12); }
+  #frame {
+    position: relative; display: none;
+    box-shadow: 0 30px 80px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.06);
+    border-radius: 4px; overflow: hidden; background: #000;
+  }
+  #frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #video { position: absolute; left: 0; top: 0; width: 2px; height: 2px; opacity: .01; pointer-events: none; }
+
+  #empty { text-align: center; max-width: 380px; padding: 24px; }
+  .empty-ring {
+    width: 84px; height: 84px; margin: 0 auto 22px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: linear-gradient(var(--panel), var(--panel)) padding-box, var(--grad) border-box;
+    border: 1.5px solid transparent;
+  }
+  #empty h2 { font-size: 19px; font-weight: 600; letter-spacing: -.015em; margin-bottom: 8px; }
+  #empty p { color: var(--muted); margin-bottom: 22px; }
+  .btn-primary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+    padding: 11px 20px; border: 0; border-radius: 10px; cursor: pointer;
+    font: 600 13px var(--font); color: #07110f;
+    background: var(--grad);
+    transition: transform .15s, filter .15s, box-shadow .15s;
+    box-shadow: 0 6px 24px rgba(45,212,191,.18);
+  }
+  .btn-primary:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 10px 30px rgba(251,146,60,.2); }
+  .btn-primary:active:not(:disabled) { transform: translateY(0); }
+  .btn-primary:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; filter: grayscale(.6); }
+  .kbd { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-top: 18px; }
+
+  #compare {
+    position: absolute; top: 14px; left: 14px; z-index: 3; display: none;
+    padding: 7px 12px; border-radius: 8px; cursor: pointer;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    background: rgba(8,9,12,.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--line-2); color: var(--text);
+    font: 500 11.5px var(--font); align-items: center; gap: 8px;
+    touch-action: none;
+  }
+  #compare.on { border-color: var(--orange); color: var(--orange); }
+  #badge {
+    position: absolute; top: 14px; right: 14px; z-index: 3; display: none;
+    padding: 7px 12px; border-radius: 8px; font: 500 11px var(--mono); color: var(--muted);
+    background: rgba(8,9,12,.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--line-2);
+  }
+
+  .transport {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px; border-radius: 12px;
+    background: var(--panel); border: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .time { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .time b { color: var(--text); font-weight: 500; }
+
+  /* ---------- Sidebar ---------- */
+  aside {
+    width: 320px; flex-shrink: 0; overflow-y: auto;
+    border-left: 1px solid var(--line);
+    background: var(--bg-2);
+    padding: 16px; display: flex; flex-direction: column; gap: 12px;
+    scrollbar-width: thin; scrollbar-color: #262a31 transparent;
+  }
+  aside::-webkit-scrollbar { width: 8px; }
+  aside::-webkit-scrollbar-thumb { background: #262a31; border-radius: 8px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+  .card-h { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .card-h .n { font: 500 10.5px var(--mono); color: var(--dim); }
+  .card-h h3 { font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+  .card-h .rule { flex: 1; height: 1px; background: var(--line); }
+
+  .file-btn {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    padding: 12px; border-radius: 10px; cursor: pointer;
+    background: var(--panel-2); border: 1px dashed var(--line-2); color: var(--text);
+    font: 500 12.5px var(--font); text-align: left; transition: border-color .15s, background .15s;
+  }
+  .file-btn:hover { border-color: var(--teal); background: #161a1f; }
+  .file-btn .ico { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: rgba(45,212,191,.1); color: var(--teal); }
+  .file-btn .meta { min-width: 0; flex: 1; }
+  .file-btn .meta div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-btn .meta small { color: var(--dim); font-size: 11px; font-family: var(--mono); }
+
+  .field-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; color: var(--text); font-weight: 500; font-size: 12.5px; }
+  .field-label .val { font: 500 12px var(--mono); color: var(--teal); }
+  .field + .field { margin-top: 16px; }
+
+  select {
+    width: 100%; appearance: none; -webkit-appearance: none;
+    padding: 10px 36px 10px 12px; border-radius: 9px;
+    background: var(--panel-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a909b' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+    border: 1px solid var(--line-2); color: var(--text); font: 500 13px var(--font); cursor: pointer;
+    transition: border-color .15s;
+  }
+  select:hover, select:focus { border-color: var(--teal); outline: none; }
+  select option { background: #14171c; }
+
+  .swatch { margin-top: 10px; height: 8px; border-radius: 6px; border: 1px solid var(--line); transition: background .3s; }
+
+  input[type=range] {
+    --p: 50%; width: 100%; height: 18px; background: transparent; cursor: pointer;
+    -webkit-appearance: none; appearance: none; outline: none; display: block;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 4px;
+    background: linear-gradient(90deg, var(--teal), var(--orange)) 0 0 / var(--p) 100% no-repeat, rgba(255,255,255,.1);
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; margin-top: -6px;
+    background: #fff; border: 0; box-shadow: 0 2px 8px rgba(0,0,0,.6), 0 0 0 4px rgba(255,255,255,.08);
+  }
+  input[type=range]::-moz-range-track { height: 4px; border-radius: 4px; background: rgba(255,255,255,.1); }
+  input[type=range]::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--teal); }
+  input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 2px 8px rgba(0,0,0,.6); }
+  input[type=range]:disabled { opacity: .4; cursor: not-allowed; }
+  .transport input[type=range] { flex: 1; min-width: 0; }
+
+  .btn-ghost {
+    display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%;
+    padding: 11px; border-radius: 10px; cursor: pointer;
+    background: var(--panel-2); border: 1px solid var(--line-2); color: var(--text);
+    font: 600 13px var(--font); transition: border-color .15s, background .15s;
+  }
+  .btn-ghost:hover:not(:disabled) { border-color: var(--teal); background: #181c22; }
+  .btn-ghost:disabled { opacity: .35; cursor: not-allowed; }
+  .btn-primary.full { width: 100%; margin-top: 10px; padding: 13px; }
+
+  .progress { margin-top: 14px; display: none; }
+  .progress.show { display: block; }
+  .bar { height: 6px; border-radius: 6px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--grad); border-radius: 6px; transition: width .15s linear; }
+  .progress-meta { display: flex; justify-content: space-between; margin-top: 7px; font: 500 11px var(--mono); color: var(--muted); }
+  .cancel { background: none; border: 0; color: var(--muted); cursor: pointer; font: 500 11px var(--mono); text-decoration: underline; text-underline-offset: 3px; }
+  .cancel:hover { color: var(--orange); }
+  .hint { margin-top: 12px; font-size: 11.5px; color: var(--dim); line-height: 1.55; }
+
+  .limits { padding: 2px 4px 14px; font-size: 11px; line-height: 1.6; color: #666c77; }
+  .limits strong { color: #7b818c; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 10px; display: block; margin-bottom: 6px; }
+  .limits ol { padding-left: 16px; }
+  .limits li { margin-bottom: 4px; }
+
+  .err { display: none; margin: 14px 14px 0; padding: 12px 14px; border-radius: 10px; background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.35); color: #fca5a5; font: 12px var(--mono); white-space: pre-wrap; flex-shrink: 0; }
+
+  @media (max-width: 860px) {
+    body { overflow: auto; height: auto; min-height: 100%; }
+    main { flex-direction: column; }
+    aside { width: 100%; border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+    #stage { min-height: 340px; flex: none; height: 52vh; }
+    .brand-sub { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 32 32" fill="none">
+      <circle cx="12" cy="16" r="9" fill="#2dd4bf" fill-opacity=".85"/>
+      <circle cx="20" cy="16" r="9" fill="#fb923c" fill-opacity=".85" style="mix-blend-mode:screen"/>
+    </svg>
+    <div class="brand-name">LUT <span>Studio</span></div>
+    <div class="brand-sub">Local color grading and export. Nothing is uploaded.</div>
+  </div>
+  <div class="pill"><span class="dot" id="statusDot"></span><span id="statusText">No video</span></div>
+</header>
+
+<div class="err" id="err"></div>
+
+<main>
+  <section class="stage-col">
+    <div id="stage">
+      <div id="empty">
+        <div class="empty-ring">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="url(#g1)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#fb923c"/></linearGradient></defs>
+            <rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="m10 9.5 5 2.5-5 2.5z"/>
+          </svg>
+        </div>
+        <h2>Drop a video to start grading</h2>
+        <p>Pick a cinematic look, set the intensity, then export. All processing happens on your device.</p>
+        <button class="btn-primary" id="emptyBtn" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          Choose video file
+        </button>
+        <div class="kbd">Chrome, Edge or Safari</div>
+      </div>
+
+      <div id="frame"><canvas id="gl"></canvas></div>
+      <video id="video" playsinline webkit-playsinline preload="auto"></video>
+
+      <div id="compare">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 6l6 6-6 6V6zM21 6l-6 6 6 6V6z"/></svg>
+        Hold to see original
+      </div>
+      <div id="badge"></div>
+    </div>
+
+    <div class="transport">
+      <input type="range" id="seek" min="0" max="1000" value="0" disabled style="--p:0%">
+      <div class="time"><b id="tCur">00:00</b> / <span id="tDur">00:00</span></div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <div class="card-h"><span class="n">01</span><h3>Source</h3><span class="rule"></span></div>
+      <input type="file" id="file" accept="video/*" hidden>
+      <button class="file-btn" id="fileBtn" type="button">
+        <span class="ico">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        </span>
+        <span class="meta"><div id="fileName">Upload a video</div><small id="fileMeta">MP4, MOV, WebM</small></span>
+      </button>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span class="n">02</span><h3>Grade</h3><span class="rule"></span></div>
+      <div class="field">
+        <div class="field-label"><span>Cinematic look</span></div>
+        <select id="look">
+          <option value="0">None</option>
+          <option value="1" selected>Teal &amp; Orange</option>
+          <option value="2">Kodak warm</option>
+          <option value="3">Moody blue</option>
+          <option value="4">Black &amp; White</option>
+        </select>
+        <div class="swatch" id="swatch"></div>
+      </div>
+      <div class="field">
+        <div class="field-label"><span>Intensity</span><span class="val" id="amtVal">75</span></div>
+        <input type="range" id="amt" min="0" max="100" value="75" style="--p:75%">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span class="n">03</span><h3>Playback and export</h3><span class="rule"></span></div>
+      <button class="btn-ghost" id="play" type="button" disabled>
+        <svg id="icoPlay" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4a1 1 0 0 0 1.5.86l12-7.2a1 1 0 0 0 0-1.72l-12-7.2A1 1 0 0 0 7 4.8z"/></svg>
+        <svg id="icoPause" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4.5" height="16" rx="1"/><rect x="13.5" y="4" width="4.5" height="16" rx="1"/></svg>
+        <span id="playTxt">Play</span>
+      </button>
+      <button class="btn-primary full" id="export" type="button" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0-4-4m4 4 4-4M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <span id="exportTxt">Export graded video</span>
+      </button>
+      <div class="progress" id="prog">
+        <div class="bar"><i id="progBar"></i></div>
+        <div class="progress-meta"><span id="progTxt">0%</span><button class="cancel" id="cancel" type="button">Cancel</button></div>
+      </div>
+      <div class="hint">Export runs in real time: a 1-minute clip takes about 1 minute. Keep this tab focused and visible until it finishes.</div>
+    </div>
+
+    <div class="limits">
+      <strong>Limitations</strong>
+      <ol>
+        <li>Export is WebM/VP9 where supported, because that is what MediaRecorder supports natively. MP4/H.264 would require FFmpeg.wasm. Safari exports MP4.</li>
+        <li>Export speed is real time.</li>
+      </ol>
+    </div>
+  </aside>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+
+  const video = $('video'), glCanvas = $('gl'), frame = $('frame'), stage = $('stage');
+  const comp = document.createElement('canvas');   // 2D canvas used as the export source
+  const cctx = comp.getContext('2d');
+
+  /* ------------------------------------------------------------------
+     WebGL
+  ------------------------------------------------------------------ */
+  const VERT = `
+    attribute vec2 p;
+    varying vec2 uv;
+    void main() {
+      uv = p * 0.5 + 0.5;
+      gl_Position = vec4(p, 0.0, 1.0);
+    }`;
+
+  const FRAG = `
+    precision mediump float;
+    varying vec2 uv;
+    uniform sampler2D tex;
+    uniform int look;
+    uniform float amt;
+
+    float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+    vec3 contrast(vec3 c, float k) { return (c - 0.5) * k + 0.5; }
+    vec3 saturate3(vec3 c, float s) { return mix(vec3(luma(c)), c, s); }
+
+    // lift / gamma / gain
+    vec3 lgg(vec3 c, vec3 lift, vec3 gamma, vec3 gain) {
+      c = c * gain + lift * (1.0 - c);
+      return pow(max(c, vec3(0.0)), 1.0 / gamma);
+    }
+
+    vec3 tealOrange(vec3 c) {
+      float l = luma(c);
+      float shadow = 1.0 - smoothstep(0.0, 0.6, l);
+      float high   = smoothstep(0.4, 1.0, l);
+      c = lgg(c, vec3(-0.015, 0.035, 0.06), vec3(1.0), vec3(1.0));
+      c += shadow * vec3(-0.03, 0.02, 0.05);
+      c *= mix(vec3(1.0), vec3(1.12, 1.02, 0.86), high);
+      c = saturate3(c, 1.08);
+      return contrast(c, 1.15);
+    }
+
+    vec3 kodak(vec3 c) {
+      c = lgg(c, vec3(0.025, 0.008, -0.012), vec3(1.08, 1.02, 0.94), vec3(1.05, 1.01, 0.93));
+      c = saturate3(c, 1.06);
+      return contrast(c, 1.08);
+    }
+
+    vec3 moodyBlue(vec3 c) {
+      float l = luma(c);
+      float shadow = 1.0 - smoothstep(0.0, 0.55, l);
+      c = lgg(c, vec3(-0.02, 0.0, 0.055), vec3(0.93, 0.97, 1.05), vec3(0.95, 0.99, 1.08));
+      c += shadow * vec3(-0.015, 0.005, 0.045);
+      c = saturate3(c, 0.72);
+      return contrast(c, 1.22);
+    }
+
+    vec3 blackWhite(vec3 c) {
+      float l = luma(c);
+      l = (l - 0.5) * 1.28 + 0.5;
+      return vec3(l);
+    }
+
+    void main() {
+      vec3 o = texture2D(tex, uv).rgb;
+      vec3 g = o;
+      if (look == 1) g = tealOrange(o);
+      else if (look == 2) g = kodak(o);
+      else if (look == 3) g = moodyBlue(o);
+      else if (look == 4) g = blackWhite(o);
+      g = clamp(g, 0.0, 1.0);
+      gl_FragColor = vec4(clamp(mix(o, g, amt), 0.0, 1.0), 1.0);
+    }`;
+
+  function showError(msg) { const e = $('err'); e.textContent = msg; e.style.display = 'block'; }
+
+  const gl = glCanvas.getContext('webgl', { preserveDrawingBuffer: true, alpha: false, antialias: false });
+  if (!gl) { showError('WebGL is not available in this browser.'); throw new Error('No WebGL'); }
+
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  let prog;
+  try {
+    prog = gl.createProgram();
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  } catch (e) { showError(String(e.message || e)); throw e; }
+  gl.useProgram(prog);
+
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'p');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.uniform1i(gl.getUniformLocation(prog, 'tex'), 0);
+  const uLook = gl.getUniformLocation(prog, 'look');
+  const uAmt = gl.getUniformLocation(prog, 'amt');
+
+  /* ------------------------------------------------------------------
+     State and helpers
+  ------------------------------------------------------------------ */
+  let loaded = false, exporting = false, comparing = false, seeking = false;
+  let objectUrl = null, currentFile = null, triedFallback = false;
+
+  const SWATCH = {
+    0: 'linear-gradient(90deg,#2a2d33,#8a909b)',
+    1: 'linear-gradient(90deg,#06323a,#0e7490 30%,#8a7a6c 60%,#fb923c)',
+    2: 'linear-gradient(90deg,#2b1d12,#8a5a2b 40%,#e8b66a 75%,#fde7b8)',
+    3: 'linear-gradient(90deg,#070d1c,#1d3358 45%,#5b7396 75%,#a8b8cc)',
+    4: 'linear-gradient(90deg,#000,#777 50%,#fff)'
+  };
+  const fmt = s => {
+    if (!isFinite(s)) s = 0;
+    return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+  };
+  const setFill = el => { el.style.setProperty('--p', ((el.value - el.min) / (el.max - el.min) * 100) + '%'); };
+  function setStatus(text, mode) { $('statusText').textContent = text; $('statusDot').className = 'dot' + (mode ? ' ' + mode : ''); }
+
+  function fit() {
+    if (!loaded) return;
+    const pad = 24;
+    const aw = stage.clientWidth - pad * 2, ah = stage.clientHeight - pad * 2;
+    const vr = glCanvas.width / glCanvas.height;
+    let w = aw, h = aw / vr;
+    if (h > ah) { h = ah; w = ah * vr; }
+    frame.style.width = Math.max(10, Math.floor(w)) + 'px';
+    frame.style.height = Math.max(10, Math.floor(h)) + 'px';
+  }
+  new ResizeObserver(fit).observe(stage);
+  window.addEventListener('orientationchange', () => setTimeout(fit, 300));
+
+  /* ------------------------------------------------------------------
+     Loading
+  ------------------------------------------------------------------ */
+  function loadFile(file) {
+    if (!file || (file.type && !file.type.startsWith('video/'))) { showError('Please choose a video file.'); return; }
+    $('err').style.display = 'none';
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    currentFile = file; triedFallback = false; loaded = false;
+    $('play').disabled = $('export').disabled = $('seek').disabled = true;
+    objectUrl = URL.createObjectURL(file);
+    video.src = objectUrl;
+    video.load();
+    $('fileName').textContent = file.name;
+    $('fileMeta').textContent = (file.size / 1048576).toFixed(1) + ' MB';
+    setStatus('Loading', '');
+  }
+
+  // iPhone Safari often never fires "loadeddata" until playback starts,
+  // so the app becomes ready as soon as the metadata (size, duration) is known.
+  function onReady() {
+    if (loaded || !video.videoWidth) return;
+    const w = video.videoWidth, h = video.videoHeight;
+    glCanvas.width = comp.width = w;
+    glCanvas.height = comp.height = h;
+    gl.viewport(0, 0, w, h);
+    $('tDur').textContent = fmt(video.duration);
+    $('badge').textContent = w + ' x ' + h;
+    loaded = true;
+    $('err').style.display = 'none';
+    $('empty').style.display = 'none';
+    frame.style.display = 'block';
+    $('compare').style.display = 'flex';
+    $('badge').style.display = 'block';
+    $('play').disabled = $('export').disabled = $('seek').disabled = false;
+    setStatus('Ready', 'live');
+    fit();
+    // Nudge the decoder so a first frame appears (muted play is allowed everywhere).
+    try { video.currentTime = 0.001; } catch (_) {}
+    video.muted = true;
+    const pr = video.play();
+    if (pr && pr.then) pr.then(() => { video.pause(); video.muted = false; try { video.currentTime = 0.001; } catch (_) {} })
+                         .catch(() => { video.muted = false; });
+    else video.muted = false;
+  }
+  video.addEventListener('loadedmetadata', onReady);
+  video.addEventListener('loadeddata', onReady);
+  video.addEventListener('canplay', onReady);
+
+  function decodeFail() {
+    const er = video.error;
+    showError('This video could not be loaded.\n' +
+      'Error code: ' + (er ? er.code : '?') + (er && er.message ? ' (' + er.message + ')' : '') + '\n' +
+      'File type: ' + (currentFile && currentFile.type ? currentFile.type : 'unknown'));
+    setStatus('Error', '');
+  }
+  video.addEventListener('error', () => {
+    if (currentFile && !triedFallback) {      // some sandboxed viewers block blob: media URLs
+      triedFallback = true;
+      const r = new FileReader();
+      r.onload = () => { video.src = r.result; video.load(); };
+      r.onerror = decodeFail;
+      r.readAsDataURL(currentFile);
+      return;
+    }
+    decodeFail();
+  });
+
+  function syncPlayUI() {
+    const playing = !video.paused && !video.ended;
+    $('icoPlay').style.display = playing ? 'none' : 'block';
+    $('icoPause').style.display = playing ? 'block' : 'none';
+    $('playTxt').textContent = playing ? 'Pause' : 'Play';
+  }
+  video.addEventListener('play', syncPlayUI);
+  video.addEventListener('pause', syncPlayUI);
+  video.addEventListener('ended', syncPlayUI);
+
+  /* ------------------------------------------------------------------
+     Controls
+  ------------------------------------------------------------------ */
+  $('fileBtn').onclick = $('emptyBtn').onclick = () => $('file').click();
+  $('file').onchange = e => { if (e.target.files[0]) loadFile(e.target.files[0]); e.target.value = ''; };
+
+  ['dragenter', 'dragover'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); stage.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(ev => stage.addEventListener(ev, e => { e.preventDefault(); stage.classList.remove('drag'); }));
+  stage.addEventListener('drop', e => { if (!exporting && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]); });
+
+  $('look').onchange = () => { $('swatch').style.background = SWATCH[$('look').value]; };
+  $('swatch').style.background = SWATCH[1];
+  $('amt').oninput = () => { $('amtVal').textContent = $('amt').value; setFill($('amt')); };
+
+  async function togglePlay() {
+    if (!loaded || exporting) return;
+    try {
+      video.muted = false;
+      if (video.paused || video.ended) await video.play(); else video.pause();
+    } catch (e) { showError('Playback was blocked: ' + e.message); }
+  }
+  $('play').onclick = togglePlay;
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' && !/^(TEXTAREA|INPUT|SELECT|BUTTON)$/.test(document.activeElement.tagName)) { e.preventDefault(); togglePlay(); }
+  });
+
+  const seek = $('seek');
+  seek.addEventListener('pointerdown', () => { seeking = true; });
+  ['pointerup', 'pointercancel'].forEach(ev => seek.addEventListener(ev, () => { seeking = false; }));
+  seek.addEventListener('input', () => {
+    setFill(seek);
+    if (loaded && !exporting) video.currentTime = (seek.value / 1000) * video.duration;
+  });
+
+  const cmp = $('compare');
+  const cmpOn = e => { e.preventDefault(); comparing = true; cmp.classList.add('on'); };
+  const cmpOff = () => { comparing = false; cmp.classList.remove('on'); };
+  cmp.addEventListener('pointerdown', cmpOn);
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => cmp.addEventListener(ev, cmpOff));
+
+  /* ------------------------------------------------------------------
+     Render loop (always re-schedules, even when paused)
+  ------------------------------------------------------------------ */
+  function render() {
+    requestAnimationFrame(render);
+    if (!loaded) return;
+
+    if (video.readyState >= 2) {
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    }
+    gl.uniform1i(uLook, parseInt($('look').value, 10));
+    gl.uniform1f(uAmt, comparing ? 0 : $('amt').value / 100);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    if (exporting) cctx.drawImage(glCanvas, 0, 0, comp.width, comp.height);
+
+    const d = video.duration || 0;
+    $('tCur').textContent = fmt(video.currentTime);
+    if (!seeking && d) { seek.value = Math.round(video.currentTime / d * 1000); setFill(seek); }
+  }
+  requestAnimationFrame(render);
+
+  /* ------------------------------------------------------------------
+     Export (MediaRecorder)
+  ------------------------------------------------------------------ */
+  function pickMime() {
+    const list = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+    return list.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || '';
+  }
+
+  let recorder = null, cancelled = false;
+
+  function lockUI(lock) {
+    $('export').disabled = lock || !loaded;
+    $('play').disabled = lock || !loaded;
+    $('seek').disabled = lock || !loaded;
+    $('fileBtn').disabled = lock;
+    $('prog').classList.toggle('show', lock);
+    $('exportTxt').textContent = lock ? 'Exporting...' : 'Export graded video';
+    setStatus(lock ? 'Recording' : 'Ready', lock ? 'rec' : 'live');
+  }
+
+  $('export').onclick = async () => {
+    if (!loaded || exporting) return;
+    if (!window.MediaRecorder) { showError('MediaRecorder is not supported in this browser.'); return; }
+    const mime = pickMime();
+    if (!mime) { showError('No supported recording format found in this browser.'); return; }
+
+    cancelled = false;
+    exporting = true;
+    lockUI(true);
+    $('progBar').style.width = '0%';
+    $('progTxt').textContent = '0%';
+
+    video.pause();
+    await new Promise(res => {
+      let done = false;
+      const fin = () => { if (!done) { done = true; video.onseeked = null; res(); } };
+      video.onseeked = fin;
+      video.currentTime = 0;
+      setTimeout(fin, 800);
+    });
+    cctx.drawImage(glCanvas, 0, 0, comp.width, comp.height);
+
+    const stream = comp.captureStream(30);
+    try {   // carry the original audio through where the browser allows it
+      const vs = video.captureStream ? video.captureStream() : null;
+      if (vs) vs.getAudioTracks().forEach(tr => stream.addTrack(tr));
+    } catch (_) {}
+
+    const chunks = [];
+    try {
+      recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 });
+    } catch (e) {
+      exporting = false; lockUI(false); showError('Could not start the recorder: ' + e.message); return;
+    }
+    recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    recorder.onstop = () => {
+      exporting = false;
+      video.onended = null;
+      video.ontimeupdate = null;
+      lockUI(false);
+      if (cancelled) return;
+      const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+      const blob = new Blob(chunks, { type: mime.split(';')[0] });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'graded.' + ext;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    };
+
+    video.ontimeupdate = () => {
+      const p = Math.min(100, Math.round(video.currentTime / video.duration * 100));
+      $('progBar').style.width = p + '%';
+      $('progTxt').textContent = p + '%  /  ' + fmt(video.currentTime) + ' of ' + fmt(video.duration);
+    };
+    video.onended = () => {
+      $('progBar').style.width = '100%'; $('progTxt').textContent = '100%';
+      if (recorder.state !== 'inactive') recorder.stop();
+    };
+
+    recorder.start(250);
+    try { video.muted = false; await video.play(); }
+    catch (e) {
+      cancelled = true;
+      if (recorder.state !== 'inactive') recorder.stop();
+      showError('Playback was blocked: ' + e.message);
+    }
+  };
+
+  $('cancel').onclick = () => {
+    if (!exporting || !recorder) return;
+    cancelled = true;
+    video.pause();
+    if (recorder.state !== 'inactive') recorder.stop();
+  };
+
+  setFill($('amt'));
+  setFill(seek);
+})();
+</script>
+</body>
+</html>
